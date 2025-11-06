@@ -1,0 +1,35 @@
+﻿# Build artifacts
+bin/
+obj/
+[Bb]uild/
+[Ll]ogs/
+*.log
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.csproj.user
+
+# IDE settings
+.vs/
+.vscode/
+.idea/
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+# Package restore sources
+.nuget/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Rider
+*.sln.iml
+
+# ASP.NET scaffolding
+ScaffoldingReadMe.txt
