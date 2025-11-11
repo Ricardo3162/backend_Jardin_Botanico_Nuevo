@@ -13,5 +13,5 @@ public partial class ubicacion
 
     public string estado { get; set; } = null!;
 
-    public virtual ICollection<ejemplar> ejemplars { get; set; } = new List<ejemplar>();
+    public virtual ICollection<especie_ubicacion> especie_ubicacions { get; set; } = new List<especie_ubicacion>();
 }

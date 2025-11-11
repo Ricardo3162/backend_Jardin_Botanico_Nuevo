@@ -1,0 +1,83 @@
+            distribucion_colombia_especie = creadaFull.distribucion_colombia_especie ?? string.Empty,
+            distribucion_caqueta_especie = creadaFull.distribucion_caqueta_especie ?? string.Empty,
+            distribucion_mundial_especie = creadaFull.distribucion_mundial_especie ?? string.Empty,
+            muestras_secas_herbario_especie = creadaFull.muestras_secas_herbario_especie,
+            estado = creadaFull.estado,
+            imagen_url = Url.Action(nameof(GetImagen), new { id = creadaFull.id_especie }) ?? $"/api/Especies/{creadaFull.id_especie}/imagen"
+        };
+        return CreatedAtAction(nameof(GetById), new { id = dto.id_especie }, dto);
+    }
+
+    // ----------------------- PUT (multipart/form-data) -----------------------
+    [HttpPut("{id:int}")]
+    // [Authorize(Roles = "Colaborador,Administrador,Docente")] // reactivar cuando aplique
+    [AllowAnonymous]
+    public async Task<IActionResult> Update(
+        int id,
+        [FromForm(Name = "file")] IFormFile file,
+        [FromForm] string nombre_comun_especie,
+        [FromForm] string nombre_cientifico_especie,
+        [FromForm] string descripcion_especie,
+        [FromForm] string uso_especie,
+        [FromForm] string origen_especie,
+        [FromForm] string fenologia_especie,
+        [FromForm] string distribucion_colombia_especie,
+        [FromForm] string distribucion_caqueta_especie,
+        [FromForm] string distribucion_mundial_especie,
+        [FromForm] bool muestras_secas_herbario_especie,
+        [FromForm] string? estado,
+        CancellationToken ct)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { error = "Archivo requerido: 'file'" });
+
+        if (string.IsNullOrWhiteSpace(nombre_comun_especie)) return BadRequest(new { error = "nombre_comun_especie es requerido" });
+        if (string.IsNullOrWhiteSpace(nombre_cientifico_especie)) return BadRequest(new { error = "nombre_cientifico_especie es requerido" });
+        if (string.IsNullOrWhiteSpace(descripcion_especie)) return BadRequest(new { error = "descripcion_especie es requerido" });
+        if (string.IsNullOrWhiteSpace(uso_especie)) return BadRequest(new { error = "uso_especie es requerido" });
+        if (string.IsNullOrWhiteSpace(origen_especie)) return BadRequest(new { error = "origen_especie es requerido" });
+        if (string.IsNullOrWhiteSpace(fenologia_especie)) return BadRequest(new { error = "fenologia_especie es requerido" });
+        if (string.IsNullOrWhiteSpace(distribucion_colombia_especie)) return BadRequest(new { error = "distribucion_colombia_especie es requerido" });
+        if (string.IsNullOrWhiteSpace(distribucion_caqueta_especie)) return BadRequest(new { error = "distribucion_caqueta_especie es requerido" });
+        if (string.IsNullOrWhiteSpace(distribucion_mundial_especie)) return BadRequest(new { error = "distribucion_mundial_especie es requerido" });
+
+        byte[] imgBytes;
+        using (var ms = new MemoryStream())
+        {
+            await file.CopyToAsync(ms, ct);
+            imgBytes = ms.ToArray();
+        }
+
+        var ok = await _service.UpdateAsync(id, e =>
+        {
+            e.nombre_comun_especie = nombre_comun_especie.Trim();
+            e.nombre_cientifico_especie = nombre_cientifico_especie.Trim();
+            e.descripcion_especie = descripcion_especie.Trim();
+            e.imagen_especie = imgBytes;
+            e.uso_especie = uso_especie.Trim();
+            e.origen_especie = origen_especie.Trim();
+            e.fenologia_especie = fenologia_especie.Trim();
+            e.distribucion_colombia_especie = distribucion_colombia_especie.Trim();
+            e.distribucion_caqueta_especie = distribucion_caqueta_especie.Trim();
+            e.distribucion_mundial_especie = distribucion_mundial_especie.Trim();
+            e.muestras_secas_herbario_especie = muestras_secas_herbario_especie;
+            if (!string.IsNullOrWhiteSpace(estado)) e.estado = estado!;
+        }, ct);
+
+        return ok ? NoContent() : NotFound(new { error = "No se encontró la especie." });
+    }
+
+    // ----------------------- DELETE (soft delete: estado=INACTIVO) -----------------------
+    [HttpDelete("{id:int}")]
+    // [Authorize(Roles = "Administrador,Docente")] // reactivar cuando aplique
+    [AllowAnonymous]
+    public async Task<IActionResult> SoftDelete(int id, CancellationToken ct)
+    {
+        var ok = await _service.UpdateAsync(id, e =>
+        {
+            e.estado = "INACTIVO";
+        }, ct);
+
+        return ok ? NoContent() : NotFound(new { error = "No se encontró la especie." });
+    }
+}

@@ -7,13 +7,19 @@ public partial class especie
 {
     public int id_especie { get; set; }
 
+    public string codigo_interno_especie { get; set; } = null!;
+
     public string nombre_comun_especie { get; set; } = null!;
 
     public string nombre_cientifico_especie { get; set; } = null!;
 
+    public string? familia_especie { get; set; }
+
     public string? descripcion_especie { get; set; }
 
     public byte[]? imagen_especie { get; set; }
+
+    public byte[]? imagen_especie2 { get; set; }
 
     public string? uso_especie { get; set; }
 
@@ -29,7 +35,19 @@ public partial class especie
 
     public bool muestras_secas_herbario_especie { get; set; }
 
+    public string? observacion_especie { get; set; }
+
+    public int? fk_estado_conservacion { get; set; }
+
+    public DateTime fecha_creacion { get; set; }
+
+    public DateTime fecha_actualizacion { get; set; }
+
     public string estado { get; set; } = null!;
 
-    public virtual ICollection<ejemplar> ejemplars { get; set; } = new List<ejemplar>();
+    public virtual ICollection<comentario> comentarios { get; set; } = new List<comentario>();
+
+    public virtual ICollection<especie_ubicacion> especie_ubicacions { get; set; } = new List<especie_ubicacion>();
+
+    public virtual estadoconservacion? fk_estado_conservacionNavigation { get; set; }
 }

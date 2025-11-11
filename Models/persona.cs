@@ -7,7 +7,9 @@ public partial class persona
 {
     public int id_persona { get; set; }
 
-    public string nombre_completo_persona { get; set; } = null!;
+    public string nombres_persona { get; set; } = null!;
+
+    public string apellidos_persona { get; set; } = null!;
 
     public string? correo_persona { get; set; }
 

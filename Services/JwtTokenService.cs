@@ -23,7 +23,7 @@ public class JwtTokenService : ITokenService
         {
             new Claim(JwtRegisteredClaimNames.Sub, p.id_persona.ToString()),
             new Claim(ClaimTypes.NameIdentifier, p.id_persona.ToString()),
-            new Claim(ClaimTypes.Name, p.nombre_completo_persona ?? string.Empty),
+            new Claim(ClaimTypes.Name, ($"{p.nombres_persona} {p.apellidos_persona}").Trim()),
             new Claim(ClaimTypes.Email, p.correo_persona ?? string.Empty),
             new Claim(ClaimTypes.Role, rol)
         };

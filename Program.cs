@@ -46,7 +46,6 @@ builder.Services.AddDbContext<JardinContext>(options =>
 
 // Services (capa de servicios)
 builder.Services.AddScoped<EspeciesService>();
-builder.Services.AddScoped<EjemplaresService>();
 builder.Services.AddMemoryCache();
 // AuthN/AuthZ registrado (controladores pueden seguir con [AllowAnonymous])
 var jwtSection = builder.Configuration.GetSection("Jwt");

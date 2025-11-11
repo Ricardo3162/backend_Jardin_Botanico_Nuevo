@@ -27,45 +27,31 @@ public class EspeciesController : ControllerBase
         return "application/octet-stream";
     }
 
-    // Sin helpers base64 en este controlador; usamos binario por endpoint dedicado
-
-    // ----------------------- GET -----------------------
-    [HttpGet]
-    [AllowAnonymous]
-    public async Task<ActionResult<IEnumerable<EspecieListDto>>> GetAll(CancellationToken ct)
+    private string BuildImageUrl(int id, bool second = false)
     {
-        var lista = await _service.GetAllAsync(ct);
-        string BaseUrl(int id) => Url.Action(nameof(GetImagen), new { id }) ?? $"/api/Especies/{id}/imagen";
-        var result = lista.Select(e => new EspecieListDto
+        var action = second ? nameof(GetImagen2) : nameof(GetImagen);
+        var url = Url.Action(action, new { id });
+        if (!string.IsNullOrEmpty(url))
         {
-            id_especie = e.id_especie,
-            nombre_comun_especie = e.nombre_comun_especie,
-            nombre_cientifico_especie = e.nombre_cientifico_especie,
-            descripcion_especie = e.descripcion_especie ?? string.Empty,
-            uso_especie = e.uso_especie ?? string.Empty,
-            origen_especie = e.origen_especie ?? string.Empty,
-            fenologia_especie = e.fenologia_especie ?? string.Empty,
-            distribucion_colombia_especie = e.distribucion_colombia_especie ?? string.Empty,
-            distribucion_caqueta_especie = e.distribucion_caqueta_especie ?? string.Empty,
-            distribucion_mundial_especie = e.distribucion_mundial_especie ?? string.Empty,
-            muestras_secas_herbario_especie = e.muestras_secas_herbario_especie,
-            estado = e.estado,
-            imagen_url = BaseUrl(e.id_especie)
-        });
-        return Ok(result);
+            return url;
+        }
+        var suffix = second ? "imagen2" : "imagen";
+        return $"/api/Especies/{id}/{suffix}";
     }
+
 
     [HttpGet("activas")]
     [AllowAnonymous]
     public async Task<ActionResult<IEnumerable<EspecieListDto>>> GetActivas(CancellationToken ct)
     {
         var lista = await _service.GetActivasAsync(ct);
-        string BaseUrl(int id) => Url.Action(nameof(GetImagen), new { id }) ?? $"/api/Especies/{id}/imagen";
         var result = lista.Select(e => new EspecieListDto
         {
             id_especie = e.id_especie,
+            codigo_interno_especie = e.codigo_interno_especie ?? string.Empty,
             nombre_comun_especie = e.nombre_comun_especie,
             nombre_cientifico_especie = e.nombre_cientifico_especie,
+            familia_especie = e.familia_especie,
             descripcion_especie = e.descripcion_especie ?? string.Empty,
             uso_especie = e.uso_especie ?? string.Empty,
             origen_especie = e.origen_especie ?? string.Empty,
@@ -73,41 +59,70 @@ public class EspeciesController : ControllerBase
             distribucion_colombia_especie = e.distribucion_colombia_especie ?? string.Empty,
             distribucion_caqueta_especie = e.distribucion_caqueta_especie ?? string.Empty,
             distribucion_mundial_especie = e.distribucion_mundial_especie ?? string.Empty,
+            observacion_especie = e.observacion_especie,
             muestras_secas_herbario_especie = e.muestras_secas_herbario_especie,
             estado = e.estado,
-            imagen_url = BaseUrl(e.id_especie)
+            imagen_url = BuildImageUrl(e.id_especie),
+            imagen_url2 = e.imagen_especie2 != null ? BuildImageUrl(e.id_especie, second: true) : null,
+            estado_conservacion = e.fk_estado_conservacionNavigation == null ? null : new EstadoConservacionDto
+            {
+                id_estado = e.fk_estado_conservacionNavigation.id_estado,
+                codigo_iucn = e.fk_estado_conservacionNavigation.codigo_iucn,
+                nombre_estado = e.fk_estado_conservacionNavigation.nombre_estado
+            },
+            ubicaciones = e.especie_ubicacions
+                .Select(u => new EspecieUbicacionDto
+                {
+                    id_ubicacion = u.fk_ubicacionNavigation.id_ubicacion,
+                    nombre_ubicacion = u.fk_ubicacionNavigation.nombre_ubicacion
+                })
+                .ToList()
         });
+
         return Ok(result);
     }
 
     [HttpGet("activas/resumen")]
     [AllowAnonymous]
-    public async Task<ActionResult<IEnumerable<object>>> GetActivasResumen(CancellationToken ct)
+    public async Task<ActionResult<PagedResult<object>>> GetActivasResumen([FromQuery] int page = 1, [FromQuery] int pageSize = 15, CancellationToken ct = default)
     {
-        // Resumen ligero sin base64: id, nombres y URL
-        var lista = await _service.GetActivasAsync(ct);
-        string BaseUrl(int id) => Url.Action(nameof(GetImagen), new { id }) ?? $"/api/Especies/{id}/imagen";
-        var result = lista.Select(e => new {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize < 1 ? 15 : pageSize;
+        var (items, total) = await _service.GetActivasResumenPageAsync(page, pageSize, ct);
+        var mapped = items.Select(e => new {
             id_especie = e.id_especie,
             nombre_cientifico_especie = e.nombre_cientifico_especie,
             nombre_comun_especie = e.nombre_comun_especie,
-            imagen_url = BaseUrl(e.id_especie)
-        });
-        return Ok(result);
+            imagen_url = BuildImageUrl(e.id_especie)
+        }).ToList();
+        var totalPages = (int)Math.Ceiling((double)total / pageSize);
+        var response = new PagedResult<object>
+        {
+            page = page,
+            pageSize = pageSize,
+            total = total,
+            totalPages = totalPages,
+            items = mapped.Cast<object>().ToList()
+        };
+        return Ok(response);
     }
 
-    [HttpGet("{id:int}")]
+
+        [HttpGet("{id:int}")]
     [AllowAnonymous]
     public async Task<ActionResult<EspecieListDto>> GetById(int id, CancellationToken ct)
     {
         var e = await _service.GetByIdAsync(id, ct);
         if (e is null || !string.Equals(e.estado, "ACTIVO", StringComparison.OrdinalIgnoreCase))
-            return NotFound(new { error = "No se encontró la especie activa." });
+            return NotFound(new { error = "No se encontr? la especie activa." });
+
         var dto = new EspecieListDto
         {
             id_especie = e.id_especie,
+            codigo_interno_especie = e.codigo_interno_especie ?? string.Empty,
             nombre_comun_especie = e.nombre_comun_especie,
             nombre_cientifico_especie = e.nombre_cientifico_especie,
+            familia_especie = e.familia_especie,
             descripcion_especie = e.descripcion_especie ?? string.Empty,
             uso_especie = e.uso_especie ?? string.Empty,
             origen_especie = e.origen_especie ?? string.Empty,
@@ -115,10 +130,26 @@ public class EspeciesController : ControllerBase
             distribucion_colombia_especie = e.distribucion_colombia_especie ?? string.Empty,
             distribucion_caqueta_especie = e.distribucion_caqueta_especie ?? string.Empty,
             distribucion_mundial_especie = e.distribucion_mundial_especie ?? string.Empty,
+            observacion_especie = e.observacion_especie,
             muestras_secas_herbario_especie = e.muestras_secas_herbario_especie,
             estado = e.estado,
-            imagen_url = Url.Action(nameof(GetImagen), new { id = e.id_especie }) ?? $"/api/Especies/{e.id_especie}/imagen"
+            imagen_url = BuildImageUrl(e.id_especie),
+            imagen_url2 = e.imagen_especie2 != null ? BuildImageUrl(e.id_especie, second: true) : null,
+            estado_conservacion = e.fk_estado_conservacionNavigation == null ? null : new EstadoConservacionDto
+            {
+                id_estado = e.fk_estado_conservacionNavigation.id_estado,
+                codigo_iucn = e.fk_estado_conservacionNavigation.codigo_iucn,
+                nombre_estado = e.fk_estado_conservacionNavigation.nombre_estado
+            },
+            ubicaciones = e.especie_ubicacions
+                .Select(u => new EspecieUbicacionDto
+                {
+                    id_ubicacion = u.fk_ubicacionNavigation.id_ubicacion,
+                    nombre_ubicacion = u.fk_ubicacionNavigation.nombre_ubicacion
+                })
+                .ToList()
         };
+
         return Ok(dto);
     }
 
@@ -132,15 +163,28 @@ public class EspeciesController : ControllerBase
         return File(item.imagen_especie, DetectContentType(item.imagen_especie));
     }
 
+    [HttpGet("{id:int}/imagen2")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetImagen2(int id, CancellationToken ct)
+    {
+        var item = await _service.GetByIdAsync(id, ct);
+        if (item == null || item.imagen_especie2 == null || item.imagen_especie2.Length == 0)
+            return NotFound(new { error = "Sin imagen secundaria" });
+        return File(item.imagen_especie2, DetectContentType(item.imagen_especie2));
+    }
+
     // ----------------------- POST (multipart/form-data) -----------------------
+
+    
     [HttpPost]
     // [Authorize(Roles = "Colaborador,Administrador,Docente")] // reactivar cuando aplique
     [AllowAnonymous]
-    public async Task<ActionResult<EspecieResponseDto>> Create(
-        [FromForm(Name = "file")] IFormFile file,
+    public async Task<ActionResult<EspecieListDto>> Create(
+        [FromForm(Name = "file")] IFormFile[] files,
         [FromForm] string nombre_comun_especie,
         [FromForm] string nombre_cientifico_especie,
         [FromForm] string descripcion_especie,
+        [FromForm] string? familia_especie,
         [FromForm] string uso_especie,
         [FromForm] string origen_especie,
         [FromForm] string fenologia_especie,
@@ -148,10 +192,13 @@ public class EspeciesController : ControllerBase
         [FromForm] string distribucion_caqueta_especie,
         [FromForm] string distribucion_mundial_especie,
         [FromForm] bool muestras_secas_herbario_especie,
+        [FromForm] string? observacion_especie,
         [FromForm] string? estado,
+        [FromForm] int? fk_estado_conservacion,
+        [FromForm] int[]? ubicaciones,
         CancellationToken ct)
     {
-        if (file == null || file.Length == 0)
+        if (files == null || files.Length == 0)
             return BadRequest(new { error = "Archivo requerido: 'file'" });
 
         if (string.IsNullOrWhiteSpace(nombre_comun_especie)) return BadRequest(new { error = "nombre_comun_especie es requerido" });
@@ -164,11 +211,24 @@ public class EspeciesController : ControllerBase
         if (string.IsNullOrWhiteSpace(distribucion_caqueta_especie)) return BadRequest(new { error = "distribucion_caqueta_especie es requerido" });
         if (string.IsNullOrWhiteSpace(distribucion_mundial_especie)) return BadRequest(new { error = "distribucion_mundial_especie es requerido" });
 
+        if (!fk_estado_conservacion.HasValue)
+            return BadRequest(new { error = "fk_estado_conservacion es requerido" });
+
+        if (ubicaciones == null || ubicaciones.Length == 0)
+            return BadRequest(new { error = "Debe enviar al menos una ubicacion" });
+
         byte[] imgBytes;
+        byte[]? imgBytes2 = null;
         using (var ms = new MemoryStream())
         {
-            await file.CopyToAsync(ms, ct);
+            await files[0].CopyToAsync(ms, ct);
             imgBytes = ms.ToArray();
+        }
+        if (files.Length > 1)
+        {
+            using var ms2 = new MemoryStream();
+            await files[1].CopyToAsync(ms2, ct);
+            imgBytes2 = ms2.ToArray();
         }
 
         var entity = new especie
@@ -176,24 +236,30 @@ public class EspeciesController : ControllerBase
             nombre_comun_especie = nombre_comun_especie.Trim(),
             nombre_cientifico_especie = nombre_cientifico_especie.Trim(),
             descripcion_especie = descripcion_especie.Trim(),
+            familia_especie = string.IsNullOrWhiteSpace(familia_especie) ? null : familia_especie.Trim(),
             imagen_especie = imgBytes,
+            imagen_especie2 = imgBytes2,
             uso_especie = uso_especie.Trim(),
             origen_especie = origen_especie.Trim(),
             fenologia_especie = fenologia_especie.Trim(),
             distribucion_colombia_especie = distribucion_colombia_especie.Trim(),
             distribucion_caqueta_especie = distribucion_caqueta_especie.Trim(),
             distribucion_mundial_especie = distribucion_mundial_especie.Trim(),
+            observacion_especie = string.IsNullOrWhiteSpace(observacion_especie) ? null : observacion_especie.Trim(),
             muestras_secas_herbario_especie = muestras_secas_herbario_especie,
-            estado = string.IsNullOrWhiteSpace(estado) ? "ACTIVO" : estado!
+            estado = string.IsNullOrWhiteSpace(estado) ? "ACTIVO" : estado!,
+            fk_estado_conservacion = fk_estado_conservacion
         };
 
-        var creada = await _service.CreateAsync(entity, ct);
+        var creada = await _service.CreateAsync(entity, ct, ubicacionIds: ubicaciones);
         var creadaFull = await _service.GetByIdAsync(creada.id_especie, ct) ?? creada;
         var dto = new EspecieListDto
         {
             id_especie = creadaFull.id_especie,
+            codigo_interno_especie = creadaFull.codigo_interno_especie ?? string.Empty,
             nombre_comun_especie = creadaFull.nombre_comun_especie,
             nombre_cientifico_especie = creadaFull.nombre_cientifico_especie,
+            familia_especie = creadaFull.familia_especie,
             descripcion_especie = creadaFull.descripcion_especie ?? string.Empty,
             uso_especie = creadaFull.uso_especie ?? string.Empty,
             origen_especie = creadaFull.origen_especie ?? string.Empty,
@@ -201,9 +267,24 @@ public class EspeciesController : ControllerBase
             distribucion_colombia_especie = creadaFull.distribucion_colombia_especie ?? string.Empty,
             distribucion_caqueta_especie = creadaFull.distribucion_caqueta_especie ?? string.Empty,
             distribucion_mundial_especie = creadaFull.distribucion_mundial_especie ?? string.Empty,
+            observacion_especie = creadaFull.observacion_especie,
             muestras_secas_herbario_especie = creadaFull.muestras_secas_herbario_especie,
             estado = creadaFull.estado,
-            imagen_url = Url.Action(nameof(GetImagen), new { id = creadaFull.id_especie }) ?? $"/api/Especies/{creadaFull.id_especie}/imagen"
+            imagen_url = BuildImageUrl(creadaFull.id_especie),
+            imagen_url2 = creadaFull.imagen_especie2 != null ? BuildImageUrl(creadaFull.id_especie, second: true) : null,
+            estado_conservacion = creadaFull.fk_estado_conservacionNavigation == null ? null : new EstadoConservacionDto
+            {
+                id_estado = creadaFull.fk_estado_conservacionNavigation.id_estado,
+                codigo_iucn = creadaFull.fk_estado_conservacionNavigation.codigo_iucn,
+                nombre_estado = creadaFull.fk_estado_conservacionNavigation.nombre_estado
+            },
+            ubicaciones = creadaFull.especie_ubicacions
+                .Select(u => new EspecieUbicacionDto
+                {
+                    id_ubicacion = u.fk_ubicacionNavigation.id_ubicacion,
+                    nombre_ubicacion = u.fk_ubicacionNavigation.nombre_ubicacion
+                })
+                .ToList()
         };
         return CreatedAtAction(nameof(GetById), new { id = dto.id_especie }, dto);
     }
@@ -214,10 +295,11 @@ public class EspeciesController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> Update(
         int id,
-        [FromForm(Name = "file")] IFormFile file,
+        [FromForm(Name = "file")] IFormFile[] files,
         [FromForm] string nombre_comun_especie,
         [FromForm] string nombre_cientifico_especie,
         [FromForm] string descripcion_especie,
+        [FromForm] string? familia_especie,
         [FromForm] string uso_especie,
         [FromForm] string origen_especie,
         [FromForm] string fenologia_especie,
@@ -225,10 +307,13 @@ public class EspeciesController : ControllerBase
         [FromForm] string distribucion_caqueta_especie,
         [FromForm] string distribucion_mundial_especie,
         [FromForm] bool muestras_secas_herbario_especie,
+        [FromForm] string? observacion_especie,
         [FromForm] string? estado,
+        [FromForm] int? fk_estado_conservacion,
+        [FromForm] int[]? ubicaciones,
         CancellationToken ct)
     {
-        if (file == null || file.Length == 0)
+        if (files == null || files.Length == 0)
             return BadRequest(new { error = "Archivo requerido: 'file'" });
 
         if (string.IsNullOrWhiteSpace(nombre_comun_especie)) return BadRequest(new { error = "nombre_comun_especie es requerido" });
@@ -242,10 +327,17 @@ public class EspeciesController : ControllerBase
         if (string.IsNullOrWhiteSpace(distribucion_mundial_especie)) return BadRequest(new { error = "distribucion_mundial_especie es requerido" });
 
         byte[] imgBytes;
+        byte[]? imgBytes2 = null;
         using (var ms = new MemoryStream())
         {
-            await file.CopyToAsync(ms, ct);
+            await files[0].CopyToAsync(ms, ct);
             imgBytes = ms.ToArray();
+        }
+        if (files.Length > 1)
+        {
+            using var ms2 = new MemoryStream();
+            await files[1].CopyToAsync(ms2, ct);
+            imgBytes2 = ms2.ToArray();
         }
 
         var ok = await _service.UpdateAsync(id, e =>
@@ -253,18 +345,32 @@ public class EspeciesController : ControllerBase
             e.nombre_comun_especie = nombre_comun_especie.Trim();
             e.nombre_cientifico_especie = nombre_cientifico_especie.Trim();
             e.descripcion_especie = descripcion_especie.Trim();
+            if (familia_especie != null) e.familia_especie = string.IsNullOrWhiteSpace(familia_especie) ? null : familia_especie.Trim();
             e.imagen_especie = imgBytes;
+            if (imgBytes2 != null)
+            {
+                e.imagen_especie2 = imgBytes2;
+            }
             e.uso_especie = uso_especie.Trim();
             e.origen_especie = origen_especie.Trim();
             e.fenologia_especie = fenologia_especie.Trim();
             e.distribucion_colombia_especie = distribucion_colombia_especie.Trim();
             e.distribucion_caqueta_especie = distribucion_caqueta_especie.Trim();
             e.distribucion_mundial_especie = distribucion_mundial_especie.Trim();
+            if (observacion_especie != null) e.observacion_especie = string.IsNullOrWhiteSpace(observacion_especie) ? null : observacion_especie.Trim();
             e.muestras_secas_herbario_especie = muestras_secas_herbario_especie;
             if (!string.IsNullOrWhiteSpace(estado)) e.estado = estado!;
+            if (fk_estado_conservacion.HasValue) e.fk_estado_conservacion = fk_estado_conservacion.Value;
         }, ct);
 
-        return ok ? NoContent() : NotFound(new { error = "No se encontró la especie." });
+        if (!ok) return NotFound(new { error = "No se encontr? la especie." });
+
+        if (ubicaciones != null && ubicaciones.Length > 0)
+        {
+            await _service.UpdateUbicacionesAsync(id, ubicaciones, ct);
+        }
+
+        return NoContent();
     }
 
     // ----------------------- DELETE (soft delete: estado=INACTIVO) -----------------------
@@ -278,6 +384,82 @@ public class EspeciesController : ControllerBase
             e.estado = "INACTIVO";
         }, ct);
 
-        return ok ? NoContent() : NotFound(new { error = "No se encontró la especie." });
+        if (!ok) return NotFound(new { error = "No se encontr? la especie." });
+
+        return NoContent();
+    }
+
+    [HttpGet("codigo/{codigo}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<EspecieListDto>> GetByCodigo(string codigo, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+            return BadRequest(new { error = "codigo requerido" });
+        var e = await _service.GetByCodigoAsync(codigo, ct);
+        if (e is null || !string.Equals(e.estado, "ACTIVO", StringComparison.OrdinalIgnoreCase))
+            return NotFound(new { error = "No se encontr? la especie activa." });
+
+        var dto = new EspecieListDto
+        {
+            id_especie = e.id_especie,
+            codigo_interno_especie = e.codigo_interno_especie ?? string.Empty,
+            nombre_comun_especie = e.nombre_comun_especie,
+            nombre_cientifico_especie = e.nombre_cientifico_especie,
+            familia_especie = e.familia_especie,
+            descripcion_especie = e.descripcion_especie ?? string.Empty,
+            uso_especie = e.uso_especie ?? string.Empty,
+            origen_especie = e.origen_especie ?? string.Empty,
+            fenologia_especie = e.fenologia_especie ?? string.Empty,
+            distribucion_colombia_especie = e.distribucion_colombia_especie ?? string.Empty,
+            distribucion_caqueta_especie = e.distribucion_caqueta_especie ?? string.Empty,
+            distribucion_mundial_especie = e.distribucion_mundial_especie ?? string.Empty,
+            observacion_especie = e.observacion_especie,
+            muestras_secas_herbario_especie = e.muestras_secas_herbario_especie,
+            estado = e.estado,
+            imagen_url = BuildImageUrl(e.id_especie),
+            imagen_url2 = e.imagen_especie2 != null ? BuildImageUrl(e.id_especie, second: true) : null,
+            estado_conservacion = e.fk_estado_conservacionNavigation == null ? null : new EstadoConservacionDto
+            {
+                id_estado = e.fk_estado_conservacionNavigation.id_estado,
+                codigo_iucn = e.fk_estado_conservacionNavigation.codigo_iucn,
+                nombre_estado = e.fk_estado_conservacionNavigation.nombre_estado
+            },
+            ubicaciones = e.especie_ubicacions
+                .Select(u => new EspecieUbicacionDto
+                {
+                    id_ubicacion = u.fk_ubicacionNavigation.id_ubicacion,
+                    nombre_ubicacion = u.fk_ubicacionNavigation.nombre_ubicacion
+                })
+                .ToList()
+        };
+return Ok(dto);
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

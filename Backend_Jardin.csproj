@@ -23,6 +23,8 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.10" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
   </ItemGroup>
+
+  <!-- Conexión y paquetes configurados; controllers/servicios de Ejemplares removidos del proyecto -->
 </Project>
 
 

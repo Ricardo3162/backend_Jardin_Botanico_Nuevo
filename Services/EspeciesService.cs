@@ -1,4 +1,4 @@
-﻿using Backend_Jardin.Data;
+using Backend_Jardin.Data;
 using Backend_Jardin.Models;
 using Backend_Jardin.DTOs;
 using Microsoft.EntityFrameworkCore;
@@ -13,18 +13,66 @@ public class EspeciesService
         _db = db;
     }
 
-    public async Task<List<especie>> GetAllAsync(CancellationToken ct = default)
-        => await _db.especies.AsNoTracking().ToListAsync(ct);
-
     public async Task<especie?> GetByIdAsync(int id, CancellationToken ct = default)
-        => await _db.especies.AsNoTracking().FirstOrDefaultAsync(e => e.id_especie == id, ct);
+        => await _db.especies
+            .Include(e => e.fk_estado_conservacionNavigation)
+            .Include(e => e.especie_ubicacions)
+                .ThenInclude(eu => eu.fk_ubicacionNavigation)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.id_especie == id, ct);
 
-    public async Task<especie> CreateAsync(especie entity, CancellationToken ct = default)
+    public async Task<especie?> GetByCodigoAsync(string codigo, CancellationToken ct = default)
+    {
+        var normalized = (codigo ?? string.Empty).Trim().Replace(" ", string.Empty);
+        return await _db.especies
+            .Include(e => e.fk_estado_conservacionNavigation)
+            .Include(e => e.especie_ubicacions)
+                .ThenInclude(eu => eu.fk_ubicacionNavigation)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.codigo_interno_especie == normalized, ct);
+    }
+
+    public async Task<especie> CreateAsync(especie entity, CancellationToken ct = default, IEnumerable<int>? ubicacionIds = null)
     {
         if (string.IsNullOrWhiteSpace(entity.estado))
             entity.estado = "ACTIVO";
         _db.especies.Add(entity);
         await _db.SaveChangesAsync(ct);
+        if (ubicacionIds != null)
+        {
+            var ids = ubicacionIds.Distinct().ToList();
+            if (ids.Count > 0)
+            {
+                var validIds = await _db.ubicacions
+                    .Where(u => ids.Contains(u.id_ubicacion))
+                    .Select(u => u.id_ubicacion)
+                    .ToListAsync(ct);
+
+                if (validIds.Count > 0)
+                {
+                    var existing = await _db.especie_ubicacions
+                        .Where(eu => eu.fk_especie == entity.id_especie && validIds.Contains(eu.fk_ubicacion))
+                        .Select(eu => eu.fk_ubicacion)
+                        .ToListAsync(ct);
+
+                    var toAdd = validIds
+                        .Except(existing)
+                        .Select(id => new especie_ubicacion
+                        {
+                            fk_especie = entity.id_especie,
+                            fk_ubicacion = id,
+                            estado = "ACTIVO"
+                        })
+                        .ToList();
+
+                    if (toAdd.Count > 0)
+                    {
+                        _db.especie_ubicacions.AddRange(toAdd);
+                        await _db.SaveChangesAsync(ct);
+                    }
+                }
+            }
+        }
         return entity;
     }
 
@@ -37,55 +85,69 @@ public class EspeciesService
         return true;
     }
 
-    public async Task<(bool ok, string? error)> DeleteAsync(int id, CancellationToken ct = default)
+    public async Task UpdateUbicacionesAsync(int idEspecie, IEnumerable<int> ubicacionIds, CancellationToken ct = default)
     {
-        var existente = await _db.especies.FirstOrDefaultAsync(e => e.id_especie == id, ct);
-        if (existente == null) return (false, null);
-        _db.especies.Remove(existente);
-        try
-        {
+        var ids = ubicacionIds?.Distinct().ToList() ?? new List<int>();
+        var validIds = await _db.ubicacions
+            .Where(u => ids.Contains(u.id_ubicacion))
+            .Select(u => u.id_ubicacion)
+            .ToListAsync(ct);
+
+        var actuales = await _db.especie_ubicacions
+            .Where(eu => eu.fk_especie == idEspecie)
+            .ToListAsync(ct);
+
+        var actualesIds = actuales.Select(a => a.fk_ubicacion).ToHashSet();
+
+        var toAdd = validIds
+            .Except(actualesIds)
+            .Select(id => new especie_ubicacion
+            {
+                fk_especie = idEspecie,
+                fk_ubicacion = id,
+                estado = "ACTIVO"
+            })
+            .ToList();
+
+        var toRemove = actuales.Where(a => !validIds.Contains(a.fk_ubicacion)).ToList();
+
+        if (toRemove.Count > 0) _db.especie_ubicacions.RemoveRange(toRemove);
+        if (toAdd.Count > 0) _db.especie_ubicacions.AddRange(toAdd);
+
+        if (toRemove.Count > 0 || toAdd.Count > 0)
             await _db.SaveChangesAsync(ct);
-            return (true, null);
-        }
-        catch (DbUpdateException ex)
-        {
-            return (false, ex.InnerException?.Message ?? ex.Message);
-        }
     }
 
     public async Task<List<especie>> GetActivasAsync(CancellationToken ct = default)
         => await _db.especies
+            .Include(e => e.fk_estado_conservacionNavigation)
+            .Include(e => e.especie_ubicacions)
+                .ThenInclude(eu => eu.fk_ubicacionNavigation)
             .AsNoTracking()
             .Where(e => e.estado == "ACTIVO")
             .ToListAsync(ct);
-    public async Task<List<EspecieResumenDto>> GetActivasResumenAsync(CancellationToken ct = default)
+
+    public async Task<(List<EspecieResumenListItem> items, int total)> GetActivasResumenPageAsync(int page, int pageSize, CancellationToken ct = default)
     {
-        var filas = await _db.especies
-            .AsNoTracking()
-            .Where(e => e.estado == "ACTIVO")
-            .Select(e => new { e.id_especie, e.nombre_cientifico_especie, e.nombre_comun_especie, e.imagen_especie })
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 15;
+        var query = _db.especies.AsNoTracking().Where(e => e.estado == "ACTIVO");
+        var total = await query.CountAsync(ct);
+        var rows = await query
+            .OrderByDescending(e => e.id_especie)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(e => new EspecieResumenListItem
+            {
+                id_especie = e.id_especie,
+                nombre_cientifico_especie = e.nombre_cientifico_especie,
+                nombre_comun_especie = e.nombre_comun_especie
+            })
             .ToListAsync(ct);
-
-        static string? Mime(byte[] bytes)
-        {
-            if (bytes.Length >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) return "image/png";
-            if (bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8) return "image/jpeg";
-            if (bytes.Length >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 && bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50) return "image/webp";
-            if (bytes.Length >= 6 && bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46) return "image/gif";
-            return null;
-        }
-
-        return filas.Select(f => new EspecieResumenDto
-        {
-            id_especie = f.id_especie,
-            nombre_cientifico_especie = f.nombre_cientifico_especie,
-            nombre_comun_especie = f.nombre_comun_especie,
-            imagen_especie = f.imagen_especie != null ? Convert.ToBase64String(f.imagen_especie) : string.Empty,
-            mime_tipo = f.imagen_especie != null ? Mime(f.imagen_especie) : null
-        }).ToList();
+        return (rows, total);
     }
-
 }
+
 
 
 

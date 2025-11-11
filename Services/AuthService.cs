@@ -64,7 +64,7 @@ public class AuthService : IAuthService
             IdPersona = persona.id_persona,
             Usuario = null,
             Correo = persona.correo_persona,
-            NombreCompleto = persona.nombre_completo_persona
+            NombreCompleto = ($"{persona.nombres_persona} {persona.apellidos_persona}").Trim()
         };
     }
 

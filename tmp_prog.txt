@@ -1,0 +1,114 @@
+1	using Microsoft.AspNetCore.Authentication.JwtBearer;
+2	using Microsoft.IdentityModel.Tokens;
+3	using System.Text;
+4	using Backend_Jardin.Data;
+5	using Backend_Jardin.Services;
+6	using Microsoft.EntityFrameworkCore;
+7	
+8	var builder = WebApplication.CreateBuilder(args);
+9	
+10	// Controllers + Swagger
+11	builder.Services.AddControllers()
+12	    .AddJsonOptions(o =>
+13	    {
+14	        o.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+15	    });
+16	builder.Services.AddEndpointsApiExplorer();
+17	builder.Services.AddSwaggerGen();
+18	
+19	// CORS
+20	var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+21	builder.Services.AddCors(options =>
+22	{
+23	    options.AddPolicy("CorsPolicy", policy =>
+24	    {
+25	        if (allowedOrigins != null && allowedOrigins.Length > 0)
+26	        {
+27	            policy.WithOrigins(allowedOrigins)
+28	                  .AllowAnyHeader()
+29	                  .AllowAnyMethod()
+30	                  .AllowCredentials();
+31	        }
+32	        else
+33	        {
+34	            policy.AllowAnyOrigin()
+35	                  .AllowAnyHeader()
+36	                  .AllowAnyMethod();
+37	        }
+38	    });
+39	});
+40	
+41	// EF Core + MySQL
+42	var connStr = builder.Configuration.GetConnectionString("JardinDb");
+43	builder.Services.AddDbContext<JardinContext>(options =>
+44	    options.UseMySql(connStr, ServerVersion.AutoDetect(connStr), o => o.UseNetTopologySuite())
+45	);
+46	
+47	// Services (capa de servicios)
+48	builder.Services.AddScoped<EspeciesService>();
+49	builder.Services.AddMemoryCache();
+50	// AuthN/AuthZ registrado (controladores pueden seguir con [AllowAnonymous])
+51	var jwtSection = builder.Configuration.GetSection("Jwt");
+52	var jwtKey = jwtSection.GetValue<string>("Key") ?? string.Empty;
+53	var jwtIssuer = jwtSection.GetValue<string>("Issuer");
+54	var jwtAudience = jwtSection.GetValue<string>("Audience");
+55	
+56	builder.Services.AddScoped<IAuthService, AuthService>();
+57	builder.Services.AddScoped<ITokenService, JwtTokenService>();
+58	
+59	builder.Services
+60	    .AddAuthentication(options =>
+61	    {
+62	        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+63	        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+64	    })
+65	    .AddJwtBearer(options =>
+66	    {
+67	        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+68	        options.TokenValidationParameters = new TokenValidationParameters
+69	        {
+70	            ValidateIssuer = true,
+71	            ValidateAudience = true,
+72	            ValidateIssuerSigningKey = true,
+73	            ValidateLifetime = true,
+74	            ValidIssuer = jwtIssuer,
+75	            ValidAudience = jwtAudience,
+76	            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+77	            ClockSkew = TimeSpan.Zero
+78	        };
+79	    });
+80	
+81	builder.Services.AddAuthorization(options =>
+82	{
+83	    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Administrador"));
+84	});
+85	
+86	var app = builder.Build();
+87	
+88	// Pipeline
+89	if (app.Environment.IsDevelopment())
+90	{
+91	    app.UseSwagger();
+92	    app.UseSwaggerUI();
+93	}
+94	else
+95	{
+96	    app.UseExceptionHandler("/error");
+97	    app.UseHsts();
+98	}
+99	
+100	// Disable HTTPS redirection while using fixed HTTP port locally
+101	// app.UseHttpsRedirection();
+102	app.UseCors("CorsPolicy");
+103	
+104	// Importante: Autenticaci?n/Autorizaci?n desactivadas temporalmente
+105	// (no UseAuthentication / no UseAuthorization)
+106	
+107	app.MapControllers();
+108	app.Run();
+109	
+110	
+111	
+112	
+113	
+114	

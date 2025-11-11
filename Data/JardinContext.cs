@@ -19,9 +19,11 @@ public partial class JardinContext : DbContext
 
     public virtual DbSet<comentario> comentarios { get; set; }
 
-    public virtual DbSet<ejemplar> ejemplars { get; set; }
-
     public virtual DbSet<especie> especies { get; set; }
+
+    public virtual DbSet<especie_ubicacion> especie_ubicacions { get; set; }
+
+    public virtual DbSet<estadoconservacion> estadoconservacions { get; set; }
 
     public virtual DbSet<persona> personas { get; set; }
 
@@ -45,56 +47,23 @@ public partial class JardinContext : DbContext
 
             entity.ToTable("comentario");
 
-            entity.HasIndex(e => e.fk_ejemplar, "idx_comentario_ejemplar");
+            entity.HasIndex(e => e.fk_especie, "idx_comentario_especie");
 
-            entity.HasIndex(e => e.estado, "idx_comentario_estado");
+            entity.HasIndex(e => e.fecha_comentario, "idx_comentario_fecha");
 
-            entity.Property(e => e.contenido_comentario).HasColumnType("text");
+            entity.Property(e => e.comentario1)
+                .HasColumnType("text")
+                .HasColumnName("comentario");
             entity.Property(e => e.estado)
                 .HasDefaultValueSql("'ACTIVO'")
                 .HasColumnType("enum('ACTIVO','INACTIVO')");
             entity.Property(e => e.fecha_comentario)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("timestamp");
+                .HasColumnType("datetime");
 
-            entity.HasOne(d => d.fk_ejemplarNavigation).WithMany(p => p.comentarios)
-                .HasForeignKey(d => d.fk_ejemplar)
-                .HasConstraintName("fk_comentario_ejemplar");
-        });
-
-        modelBuilder.Entity<ejemplar>(entity =>
-        {
-            entity.HasKey(e => e.id_ejemplar).HasName("PRIMARY");
-
-            entity.ToTable("ejemplar");
-
-            entity.HasIndex(e => e.fk_especie, "idx_ejemplar_especie");
-
-            entity.HasIndex(e => e.estado, "idx_ejemplar_estado");
-
-            entity.HasIndex(e => e.fk_ubicacion, "idx_ejemplar_ubicacion");
-
-            entity.HasIndex(e => e.codigo_interno_ejemplar, "uq_ejemplar_codigo").IsUnique();
-
-            entity.Property(e => e.codigo_interno_ejemplar).HasMaxLength(50);
-            entity.Property(e => e.coordenadas_ejemplar).HasMaxLength(100);
-            entity.Property(e => e.detalle_ubicacion).HasMaxLength(255);
-            entity.Property(e => e.estado)
-                .HasDefaultValueSql("'ACTIVO'")
-                .HasColumnType("enum('ACTIVO','INACTIVO')");
-            entity.Property(e => e.fecha_registro)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("timestamp");
-
-            entity.HasOne(d => d.fk_especieNavigation).WithMany(p => p.ejemplars)
+            entity.HasOne(d => d.fk_especieNavigation).WithMany(p => p.comentarios)
                 .HasForeignKey(d => d.fk_especie)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("fk_ejemplar_especie");
-
-            entity.HasOne(d => d.fk_ubicacionNavigation).WithMany(p => p.ejemplars)
-                .HasForeignKey(d => d.fk_ubicacion)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("fk_ejemplar_ubicacion");
+                .HasConstraintName("fk_comentario_especie");
         });
 
         modelBuilder.Entity<especie>(entity =>
@@ -105,6 +74,15 @@ public partial class JardinContext : DbContext
 
             entity.HasIndex(e => e.estado, "idx_especie_estado");
 
+            entity.HasIndex(e => e.fk_estado_conservacion, "idx_especie_estado_conserv");
+
+            entity.HasIndex(e => e.fecha_actualizacion, "idx_especie_fecha_actualizacion");
+
+            entity.HasIndex(e => e.fecha_creacion, "idx_especie_fecha_creacion");
+
+            entity.HasIndex(e => e.codigo_interno_especie, "uq_especie_codigo").IsUnique();
+
+            entity.Property(e => e.codigo_interno_especie).HasMaxLength(50);
             entity.Property(e => e.descripcion_especie).HasColumnType("text");
             entity.Property(e => e.distribucion_caqueta_especie).HasMaxLength(255);
             entity.Property(e => e.distribucion_colombia_especie).HasMaxLength(255);
@@ -112,11 +90,68 @@ public partial class JardinContext : DbContext
             entity.Property(e => e.estado)
                 .HasDefaultValueSql("'ACTIVO'")
                 .HasColumnType("enum('ACTIVO','INACTIVO')");
+            entity.Property(e => e.familia_especie).HasMaxLength(255);
+            entity.Property(e => e.fecha_actualizacion)
+                .HasMaxLength(6)
+                .ValueGeneratedOnAddOrUpdate()
+                .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+            entity.Property(e => e.fecha_creacion)
+                .HasMaxLength(6)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
             entity.Property(e => e.fenologia_especie).HasMaxLength(255);
             entity.Property(e => e.nombre_cientifico_especie).HasMaxLength(255);
             entity.Property(e => e.nombre_comun_especie).HasMaxLength(255);
+            entity.Property(e => e.observacion_especie).HasColumnType("text");
             entity.Property(e => e.origen_especie).HasMaxLength(255);
             entity.Property(e => e.uso_especie).HasMaxLength(255);
+
+            entity.HasOne(d => d.fk_estado_conservacionNavigation).WithMany(p => p.especies)
+                .HasForeignKey(d => d.fk_estado_conservacion)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_especie_estado_conserv");
+        });
+
+        modelBuilder.Entity<especie_ubicacion>(entity =>
+        {
+            entity.HasKey(e => new { e.fk_especie, e.fk_ubicacion })
+                .HasName("PRIMARY")
+                .HasAnnotation("MySql:IndexPrefixLength", new[] { 0, 0 });
+
+            entity.ToTable("especie_ubicacion");
+
+            entity.HasIndex(e => e.fk_ubicacion, "fk_eu_ubicacion");
+
+            entity.HasIndex(e => e.estado, "idx_eu_estado");
+
+            entity.Property(e => e.estado)
+                .HasDefaultValueSql("'ACTIVO'")
+                .HasColumnType("enum('ACTIVO','INACTIVO')");
+
+            entity.HasOne(d => d.fk_especieNavigation).WithMany(p => p.especie_ubicacions)
+                .HasForeignKey(d => d.fk_especie)
+                .HasConstraintName("fk_eu_especie");
+
+            entity.HasOne(d => d.fk_ubicacionNavigation).WithMany(p => p.especie_ubicacions)
+                .HasForeignKey(d => d.fk_ubicacion)
+                .HasConstraintName("fk_eu_ubicacion");
+        });
+
+        modelBuilder.Entity<estadoconservacion>(entity =>
+        {
+            entity.HasKey(e => e.id_estado).HasName("PRIMARY");
+
+            entity.ToTable("estadoconservacion");
+
+            entity.HasIndex(e => e.estado, "idx_estado_estado");
+
+            entity.HasIndex(e => e.codigo_iucn, "uq_estado_codigo").IsUnique();
+
+            entity.Property(e => e.codigo_iucn).HasMaxLength(10);
+            entity.Property(e => e.descripcion_estado).HasColumnType("text");
+            entity.Property(e => e.estado)
+                .HasDefaultValueSql("'ACTIVO'")
+                .HasColumnType("enum('ACTIVO','INACTIVO')");
+            entity.Property(e => e.nombre_estado).HasMaxLength(100);
         });
 
         modelBuilder.Entity<persona>(entity =>
@@ -131,11 +166,12 @@ public partial class JardinContext : DbContext
 
             entity.HasIndex(e => e.correo_persona, "uq_persona_correo").IsUnique();
 
+            entity.Property(e => e.apellidos_persona).HasMaxLength(150);
             entity.Property(e => e.contrasena_persona).HasMaxLength(255);
             entity.Property(e => e.estado)
                 .HasDefaultValueSql("'ACTIVO'")
                 .HasColumnType("enum('ACTIVO','INACTIVO')");
-            entity.Property(e => e.nombre_completo_persona).HasMaxLength(255);
+            entity.Property(e => e.nombres_persona).HasMaxLength(150);
             entity.Property(e => e.telefono_persona).HasMaxLength(20);
 
             entity.HasOne(d => d.fk_rolNavigation).WithMany(p => p.personas)

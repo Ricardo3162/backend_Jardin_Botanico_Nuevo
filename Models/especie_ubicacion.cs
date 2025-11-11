@@ -3,17 +3,15 @@ using System.Collections.Generic;
 
 namespace Backend_Jardin.Models;
 
-public partial class comentario
+public partial class especie_ubicacion
 {
-    public int id_comentario { get; set; }
-
     public int fk_especie { get; set; }
 
-    public DateTime fecha_comentario { get; set; }
-
-    public string comentario1 { get; set; } = null!;
+    public int fk_ubicacion { get; set; }
 
     public string estado { get; set; } = null!;
 
     public virtual especie fk_especieNavigation { get; set; } = null!;
+
+    public virtual ubicacion fk_ubicacionNavigation { get; set; } = null!;
 }
