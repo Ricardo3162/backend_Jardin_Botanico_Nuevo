@@ -21,8 +21,6 @@ public partial class especie
 
     public byte[]? imagen_especie2 { get; set; }
 
-    public string? uso_especie { get; set; }
-
     public string? origen_especie { get; set; }
 
     public string? fenologia_especie { get; set; }
@@ -39,6 +37,8 @@ public partial class especie
 
     public int? fk_estado_conservacion { get; set; }
 
+    public int fk_uso { get; set; }
+
     public DateTime fecha_creacion { get; set; }
 
     public DateTime fecha_actualizacion { get; set; }
@@ -50,4 +50,6 @@ public partial class especie
     public virtual ICollection<especie_ubicacion> especie_ubicacions { get; set; } = new List<especie_ubicacion>();
 
     public virtual estadoconservacion? fk_estado_conservacionNavigation { get; set; }
+
+    public virtual uso fk_usoNavigation { get; set; } = null!;
 }

@@ -31,6 +31,8 @@ public partial class JardinContext : DbContext
 
     public virtual DbSet<ubicacion> ubicacions { get; set; }
 
+    public virtual DbSet<uso> usos { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
         => optionsBuilder.UseMySql("server=localhost;port=3306;database=BD_Jardin_Botanico;user id=root;password=root;treattinyasboolean=true", Microsoft.EntityFrameworkCore.ServerVersion.Parse("8.0.36-mysql"), x => x.UseNetTopologySuite());
@@ -80,6 +82,8 @@ public partial class JardinContext : DbContext
 
             entity.HasIndex(e => e.fecha_creacion, "idx_especie_fecha_creacion");
 
+            entity.HasIndex(e => e.fk_uso, "idx_especie_uso");
+
             entity.HasIndex(e => e.codigo_interno_especie, "uq_especie_codigo").IsUnique();
 
             entity.Property(e => e.codigo_interno_especie).HasMaxLength(50);
@@ -103,12 +107,16 @@ public partial class JardinContext : DbContext
             entity.Property(e => e.nombre_comun_especie).HasMaxLength(255);
             entity.Property(e => e.observacion_especie).HasColumnType("text");
             entity.Property(e => e.origen_especie).HasMaxLength(255);
-            entity.Property(e => e.uso_especie).HasMaxLength(255);
 
             entity.HasOne(d => d.fk_estado_conservacionNavigation).WithMany(p => p.especies)
                 .HasForeignKey(d => d.fk_estado_conservacion)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_especie_estado_conserv");
+
+            entity.HasOne(d => d.fk_usoNavigation).WithMany(p => p.especies)
+                .HasForeignKey(d => d.fk_uso)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_especie_uso");
         });
 
         modelBuilder.Entity<especie_ubicacion>(entity =>
@@ -208,6 +216,21 @@ public partial class JardinContext : DbContext
                 .HasDefaultValueSql("'ACTIVO'")
                 .HasColumnType("enum('ACTIVO','INACTIVO')");
             entity.Property(e => e.nombre_ubicacion).HasMaxLength(255);
+        });
+
+        modelBuilder.Entity<uso>(entity =>
+        {
+            entity.HasKey(e => e.id_uso).HasName("PRIMARY");
+
+            entity.ToTable("uso");
+
+            entity.HasIndex(e => e.nombre_uso, "uq_uso_nombre").IsUnique();
+
+            entity.Property(e => e.id_uso).ValueGeneratedNever();
+            entity.Property(e => e.estado)
+                .HasDefaultValueSql("'ACTIVO'")
+                .HasColumnType("enum('ACTIVO','INACTIVO')");
+            entity.Property(e => e.nombre_uso).HasMaxLength(100);
         });
 
         OnModelCreatingPartial(modelBuilder);
