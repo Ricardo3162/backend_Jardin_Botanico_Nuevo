@@ -190,7 +190,7 @@ public class EspeciesController : ControllerBase
 
     // ----------------------- POST (multipart/form-data) -----------------------
 
-    
+
     [HttpPost]
     // [Authorize(Roles = "Colaborador,Administrador,Docente")] // reactivar cuando aplique
     [AllowAnonymous]

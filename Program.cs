@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Backend_Jardin.Data;
@@ -46,6 +46,8 @@ builder.Services.AddDbContext<JardinContext>(options =>
 
 // Services (capa de servicios)
 builder.Services.AddScoped<EspeciesService>();
+builder.Services.AddScoped<ComentariosService>();
+builder.Services.AddScoped<PersonasService>();
 builder.Services.AddMemoryCache();
 // AuthN/AuthZ registrado (controladores pueden seguir con [AllowAnonymous])
 var jwtSection = builder.Configuration.GetSection("Jwt");
@@ -101,11 +103,14 @@ else
 // app.UseHttpsRedirection();
 app.UseCors("CorsPolicy");
 
-// Importante: Autenticaci�n/Autorizaci�n desactivadas temporalmente
+// Importante: Autenticaci?n/Autorizaci?n desactivadas temporalmente
 // (no UseAuthentication / no UseAuthorization)
 
 app.MapControllers();
 app.Run();
+
+
+
 
 
 
